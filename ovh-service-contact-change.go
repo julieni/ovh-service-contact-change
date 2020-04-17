@@ -1,81 +1,58 @@
 package main
 
 import (
-	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"regexp"
-	"strings"
 
 	"github.com/joho/godotenv"
-	"github.com/ovh/go-ovh/ovh"
-	"github.com/pkg/browser"
 	"github.com/urfave/cli"
 )
 
-func createAPIToken() error {
-	err := browser.OpenURL("https://eu.api.ovh.com/createToken/?GET=/me/task/contactChange&GET=/me/task/contactChange/*&POST=/me/task/contactChange/*")
-	return err
-}
-
-// ContactChangeRequest request
-type ContactChangeRequest struct {
-	Token string `json:"token"`
-}
-
-func contactChangeAccept(c *cli.Context) error {
-	cwd, _ := os.Getwd()
-	ovhEndpoint := c.String("ovh-endpoint")
-	ovhAk := c.String("ovh-ak")
-	ovhAs := c.String("ovh-as")
-	ovhCk := c.String("ovh-ck")
-	dir := c.String("dir")
-
-	ovhapi, _ := ovh.NewClient(
-		ovhEndpoint,
-		ovhAk,
-		ovhAs,
-		ovhCk,
-	)
-
-	files, err := ioutil.ReadDir(cwd + "/" + dir)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-
-	r, _ := regexp.Compile("contacts/([0-9]+)\\?.+token=(.+)")
-	for _, file := range files {
-		c, _ := ioutil.ReadFile(cwd + "/" + dir + "/" + file.Name())
-		matches := r.FindAllSubmatch(c, -1)
-		if matches != nil {
-			id := string(matches[0][1])
-			token := strings.TrimSpace(string(matches[0][2]))
-			params := &ContactChangeRequest{Token: token}
-			err := ovhapi.Post("/me/task/contactChange/"+id+"/accept", params, nil)
-			if err != nil {
-				fmt.Println(err)
-			} else {
-				fmt.Println("Contact change request #" + id + " accepted")
-			}
-		}
-	}
-
-	return nil
-}
-
 func main() {
 
-	dotEnvError := godotenv.Load()
+	dotEnvError := godotenv.Load(".env", "env.txt")
 	if dotEnvError != nil {
 	}
+
+	extractRegexp, _ = regexp.Compile("contacts/([0-9]+)\\?.+token=(.+)")
 
 	app := cli.NewApp()
 	app.Name = "OVH Service contact change"
 	app.Author = "Julien Issler"
 	app.Email = "julien@issler.net"
-	app.Version = "0.1.0"
+	app.Version = "0.2.0"
+
+	flags := []cli.Flag{
+		cli.StringFlag{
+			Name:        "ovh-endpoint",
+			Value:       "ovh-eu",
+			Usage:       "OVH API endpoint",
+			EnvVar:      "OVH_ENDPOINT",
+			Destination: &flagOvhEP,
+		},
+		cli.StringFlag{
+			Name:        "ovh-ak",
+			Value:       "",
+			Usage:       "OVH API Application Key",
+			EnvVar:      "OVH_AK",
+			Destination: &flagOvhAK,
+		},
+		cli.StringFlag{
+			Name:        "ovh-as",
+			Value:       "",
+			Usage:       "OVH API Application Secret",
+			EnvVar:      "OVH_AS",
+			Destination: &flagOvhAS,
+		},
+		cli.StringFlag{
+			Name:        "ovh-ck",
+			Value:       "",
+			Usage:       "OVH API Consumer Key",
+			EnvVar:      "OVH_CK",
+			Destination: &flagOvhCK,
+		},
+	}
 
 	app.Commands = []cli.Command{
 		{
@@ -86,43 +63,56 @@ func main() {
 			},
 		},
 		{
-			Name: "accept",
+			Name: "file",
 			Action: func(c *cli.Context) error {
-				err := contactChangeAccept(c)
+				err := fileAccept(c)
 				return err
 			},
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:   "ovh-endpoint",
-					Value:  "ovh-eu",
-					Usage:  "OVH API endpoint",
-					EnvVar: "OVH_ENDPOINT",
-				},
-				cli.StringFlag{
-					Name:   "ovh-ak",
-					Value:  "",
-					Usage:  "OVH API Application Key",
-					EnvVar: "OVH_AK",
-				},
-				cli.StringFlag{
-					Name:   "ovh-as",
-					Value:  "",
-					Usage:  "OVH API Application Secret",
-					EnvVar: "OVH_AS",
-				},
-				cli.StringFlag{
-					Name:   "ovh-ck",
-					Value:  "",
-					Usage:  "OVH API Consumer Key",
-					EnvVar: "OVH_CK",
-				},
+			Flags: append(flags,
 				cli.StringFlag{
 					Name:   "dir",
 					Value:  "mails",
 					Usage:  "directory where mails are stored as text files, relative to current directory",
 					EnvVar: "MAIL_DIR",
 				},
+			),
+		},
+		{
+			Name: "imap",
+			Action: func(c *cli.Context) error {
+				err := imapAccept(c)
+				return err
 			},
+			Flags: append(flags,
+				cli.StringFlag{
+					Name:   "imap-server",
+					Value:  "",
+					Usage:  "imap server",
+					EnvVar: "IMAP_SERVER",
+				},
+				cli.StringFlag{
+					Name:   "imap-port",
+					Value:  "993",
+					Usage:  "imap port",
+					EnvVar: "IMAP_PORT",
+				},
+				cli.BoolFlag{
+					Name:   "imap-no-tls",
+					Usage:  "imap do not use TLS",
+					EnvVar: "IMAP_NO_TLS",
+				},
+				cli.StringFlag{
+					Name:   "imap-login",
+					Value:  "",
+					Usage:  "imap login",
+					EnvVar: "IMAP_LOGIN",
+				},
+				cli.UintFlag{
+					Name:  "since-days",
+					Value: 1,
+					Usage: "Only consider emails received in the last N days",
+				},
+			),
 		},
 	}
 
