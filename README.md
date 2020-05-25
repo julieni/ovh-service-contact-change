@@ -10,7 +10,7 @@ run `./ovh-service-contact-change init`
 
 setup your own API credentials and note them down
 
-you can report them in your .env (env.txt is also supported) file (copied from .env.example file)
+you can report them in your .env file (copied from .env.example file)
 
 ## batch accept the contact change requests
 

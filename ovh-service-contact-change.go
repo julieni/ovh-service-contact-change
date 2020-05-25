@@ -11,7 +11,7 @@ import (
 
 func main() {
 
-	dotEnvError := godotenv.Load(".env", "env.txt")
+	dotEnvError := godotenv.Load()
 	if dotEnvError != nil {
 	}
 
